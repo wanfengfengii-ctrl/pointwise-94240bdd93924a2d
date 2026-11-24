@@ -5,6 +5,7 @@ from capture.intake import CaptureIntake, IntakeResult, capture_page
 from capture.local_store import StationStore
 from capture.source_index import SourceIndex
 from capture.spill import SpillStore
+from delivery.choice import open_choice_ticket, read_choice
 from delivery.cursors import CursorLedger
 from delivery.history import BlockJournal
 from delivery.read_blocks import ReadBlock, read_next
@@ -14,6 +15,7 @@ from device.capture import DeviceWriter, WriteRejection
 from device.page_identity import PageIdentity
 from device.slot_order import SlotOrder
 from device.source_read import DeviceSourceReader, ReadHook
+from review.choice_closeout import finish_choice
 from review.receipts import ReceiptStore, ReviewReceipt, get_receipt
 from review.reconcile import finish_review
 from station.probes import ProbeProfile, ProbeRegistry
@@ -82,10 +84,23 @@ class Station:
 
     def read_next(self, ticket_id: int, max_samples: int) -> ReadBlock:
         return read_next(self.store, self.tickets, self.cursors, self.journal,
-                         self.source, self.spill, ticket_id, max_samples)
+                         self.source, self.spill, self.bank, ticket_id, max_samples)
 
     def finish_review(self, ticket_id: int) -> ReviewReceipt:
         return finish_review(self.store, self.tickets, self.journal, self.receipts, ticket_id)
+
+    def open_choice_ticket(self, page_a: PageIdentity, page_b: PageIdentity,
+                           start: int, stop: int) -> int:
+        return open_choice_ticket(self.store, self.tickets, self.source,
+                                  page_a, page_b, start, stop)
+
+    def read_choice(self, ticket: int, max_samples: int,
+                    page: PageIdentity) -> ReadBlock:
+        return read_choice(self.store, self.tickets, self.cursors, self.journal,
+                           self.source, self.bank, self.spill, ticket, max_samples, page)
+
+    def finish_choice(self, ticket: int) -> ReviewReceipt:
+        return finish_choice(self.store, self.tickets, self.journal, self.receipts, ticket)
 
     def get_receipt(self, receipt_id: int) -> ReviewReceipt:
         return get_receipt(self.receipts, receipt_id)

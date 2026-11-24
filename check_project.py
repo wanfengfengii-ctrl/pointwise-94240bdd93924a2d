@@ -1,14 +1,22 @@
-"""Run this project's full unittest suite from the repository root."""
+"""Run this project's full unittest suite and the choice-ticket interleavings."""
 import sys
 import unittest
 
+from choice_scenarios import ChoiceScenarios
+
+
+def build_suite():
+    suite = unittest.defaultTestLoader.discover('tests', top_level_dir='.')
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ChoiceScenarios))
+    return suite
+
 
 def main():
-    suite = unittest.defaultTestLoader.discover('tests', top_level_dir='.')
+    suite = build_suite()
     if suite.countTestCases():
         result = unittest.TextTestRunner(verbosity=2).run(suite)
     else:
-        print('No tests discovered in tests/', file=sys.stderr)
+        print('No tests discovered', file=sys.stderr)
         result = unittest.TestResult()
     for status, failed_cases in (
         ('FAIL', (test for test, _ in result.failures)),

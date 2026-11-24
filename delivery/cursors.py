@@ -6,22 +6,45 @@ from device.page_identity import PageIdentity
 
 
 @dataclass(frozen=True)
-class RemainingSpan:
+class OpenObligation:
+    """Unread positions a ticket still needs after the next successful overwrite.
+
+    ``pages`` holds every original page the obligation applies to. An unbound
+    choice ticket is still a candidate on both original pages; an ordinary or
+    already bound ticket holds its unread positions on one page only.
+    """
+
     ticket_id: int
     start: int
     stop: int
+    pages: tuple[PageIdentity, ...]
+    choice_candidate: bool
 
 
 class CursorLedger:
     def __init__(self, db: sqlite3.Connection) -> None:
         self.db = db
 
-    def remaining_for_page(self, page: PageIdentity) -> tuple[RemainingSpan, ...]:
+    def open_obligations(self) -> tuple[OpenObligation, ...]:
         rows = self.db.execute('''
-            SELECT ticket_id, next_pos, stop_pos FROM tickets
-            WHERE page_id = ? AND next_pos < stop_pos ORDER BY ticket_id
-        ''', (page.page_id,))
-        return tuple(RemainingSpan(row['ticket_id'], row['next_pos'], row['stop_pos']) for row in rows)
+            SELECT ticket_id, page_id, alt_page_id, bound_page_id, kind, next_pos, stop_pos
+            FROM tickets WHERE next_pos < stop_pos ORDER BY ticket_id
+        ''')
+        obligations = []
+        for row in rows:
+            if row['kind'] == 'choice' and row['bound_page_id'] is None:
+                pages = (PageIdentity(row['page_id']), PageIdentity(row['alt_page_id']))
+                obligations.append(OpenObligation(row['ticket_id'], row['next_pos'],
+                                                  row['stop_pos'], pages, True))
+            elif row['kind'] == 'choice':
+                obligations.append(OpenObligation(row['ticket_id'], row['next_pos'],
+                                                  row['stop_pos'],
+                                                  (PageIdentity(row['bound_page_id']),), False))
+            else:
+                obligations.append(OpenObligation(row['ticket_id'], row['next_pos'],
+                                                  row['stop_pos'],
+                                                  (PageIdentity(row['page_id']),), False))
+        return tuple(obligations)
 
     def advance(self, ticket: Ticket, stop: int) -> None:
         if not ticket.next_position < stop <= ticket.stop:

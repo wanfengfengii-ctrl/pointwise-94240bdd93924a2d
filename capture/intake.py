@@ -90,15 +90,19 @@ class CaptureIntake:
                     raise ValueError('the next request must match the pending original page')
                 previous = self.bank.get_slot(target.slot)
                 previous_page = None if previous is None else previous.version.page
-                plan = plan_overwrite(previous_page, self.cursors, self.spill)
+                other = self.bank.get_slot((target.slot + 1) % 2)
+                other_page = None if other is None else other.version.page
+                plan = plan_overwrite(previous_page, other_page, self.cursors, self.spill)
                 if not plan.allowed:
                     self.store.db.execute('''
                         INSERT INTO pending_capture VALUES (1, ?, ?, ?, ?)
                         ON CONFLICT (singleton) DO NOTHING
                     ''', (target.slot, target.page.page_id, shift_id, request.fingerprint))
                     return IntakeResult('pending', target, plan.required, plan.capacity)
-                if previous is not None and plan.positions:
-                    protected = self.source.read_positions(previous.version, plan.positions)
+                protected = ()
+                if previous is not None:
+                    protected = self.source.read_positions(previous.version, plan.stage)
+                    self.spill.retain(plan.keep)
                     self.spill.stage(protected)
                 written = self.writer.write_page(target, page)
                 if written.version is None:

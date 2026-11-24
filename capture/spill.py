@@ -40,6 +40,18 @@ class SpillStore:
     def used(self) -> int:
         return self.db.execute('SELECT count(*) FROM protected_samples').fetchone()[0]
 
+    def positions(self) -> set[tuple[int, int]]:
+        return {(row['page_id'], row['original_index'])
+                for row in self.db.execute('SELECT page_id, original_index FROM protected_samples')}
+
+    def drop(self, cells: Iterable[tuple[int, int]]) -> None:
+        self.db.executemany('''
+            DELETE FROM protected_samples WHERE page_id = ? AND original_index = ?
+        ''', tuple(cells))
+
+    def retain(self, cells: set[tuple[int, int]]) -> None:
+        self.drop([cell for cell in self.positions() if cell not in cells])
+
     def stage(self, samples: tuple[LocatedSample, ...]) -> None:
         if self.used() + len(samples) > self.capacity():
             raise RuntimeError('protected samples would exceed fixed capacity')

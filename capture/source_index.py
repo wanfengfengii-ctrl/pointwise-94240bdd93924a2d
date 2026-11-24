@@ -10,6 +10,17 @@ class SourceIndex:
         self.device = device
         self.spill = spill
 
+    def current_source(self, page: PageIdentity):
+        return self.device.current_source(page)
+
+    def covers(self, page: PageIdentity, positions: Iterable[int]) -> bool:
+        """Report whether every position can still be read for the original page."""
+        indices = tuple(positions)
+        if self.device.current_source(page) is not None:
+            return True
+        cells = self.spill.positions()
+        return all((page.page_id, index) in cells for index in indices)
+
     def read_positions(self, page: PageIdentity,
                        positions: Iterable[int]) -> tuple[LocatedSample, ...]:
         current = self.device.current_source(page)

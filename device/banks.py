@@ -50,6 +50,9 @@ class SlotBank:
             'SELECT * FROM device_slots WHERE page_id = ?', (page.page_id,)
         ).fetchone())
 
+    def resident_page_ids(self) -> set[int]:
+        return {row['page_id'] for row in self.db.execute('SELECT page_id FROM device_slots')}
+
     def replace_page(self, version: SlotVersion, page: ValidatedPage) -> None:
         encoded = json.dumps([value.pack() for value in page.values], ensure_ascii=False)
         self.db.execute('''

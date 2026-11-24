@@ -38,6 +38,14 @@ with Station(':memory:') as station:
 - `read_next(ticket_id, max_samples)` 要求正整数上限，返回固定票段中的下一个块。`sample.position.page`、`sample.position.index` 和 `sample.value.token` 分别给出原页、原位和原值。已读完返回空块。未知票抛出 `LookupError`，非法上限抛出 `ValueError`，读取失败抛出 `SourceReadError` 并保留进度。
 - `finish_review(ticket_id)` 核对完票覆盖并返回固定回执。未完成抛出 `IncompleteTicketError`。回执含原页原位、单位、有效数、缺测数及有效值最大绝对值，全缺测时峰值为 `None`。`get_receipt(receipt_id)` 按号读取；未知号抛出 `LookupError`。再次签报返回该票原回执。
 
+### 双原页备选票
+
+- `open_choice_ticket(page_a, page_b, start, stop)` 固定两张不同的同班当前原页及共有的非空半开区间，返回专用票号。原页不在当前槽抛出 `LookupError`；页身份错误、两页相同、跨班、区间越界或类型错误抛出 `ValueError`。
+- `read_choice(ticket, max_samples, page)` 首次领块选定的页必须整段原位仍完整。成功交付首块时一并固定实际原页、块证据与游标；此后只能指定该页，读完后继续指定该页得空块。非候选、已失格候选、切换已绑定来源或非法参数抛出 `ValueError`，未知备选票抛出 `LookupError`。读取失败沿用 `SourceReadError` 并保持原资格与游标。普通 `read_next` 遇备选票号抛出 `LookupError`。
+- `finish_choice(ticket)` 仅对已读齐的备选票签报，回执照实际交付页沿用原计数、缺测、绝对峰值与出处，重复签发返回同一回执。重开后用 `get_receipt` 按号领取。
+
+覆写只保全仍完整候选：只要某候选在槽或备存中整段仍在，它就保持可选；普通票与已绑定票的全部未读原位必须保留。按不同原页原位共用备存，仍驻槽的原件不占备存格。有满足固定容量的方案就采入并在同次提交中换出备存，无解返回 `pending`。
+
 ## 提交边界
 
 设备仅保留当前槽代次。接管按原页原位保全下一槽中仍有义务的样本。多票共享同一原位时只占一格。暂存、覆盖和下一槽推进同次提交。待采请求只存元数据及输入指纹，由上游重投原页。
